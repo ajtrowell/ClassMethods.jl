@@ -24,4 +24,11 @@ module MyModule
       return obj
     end
   end
+
+
+  function Base.show(io::IO, obj::MyModule.MyClass)
+    print(io, "$(typeof(obj))($(obj.myInt))")
+  end
+
 end
+
