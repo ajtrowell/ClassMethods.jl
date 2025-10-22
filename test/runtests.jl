@@ -59,6 +59,12 @@ end
 
 end # module MacroExample
 
+function Base.show(io::IO, obj::VanillaExample.MyClass)
+    print(io, "$(typeof(obj))(")
+    print(io, obj.value)
+    print(io, ")")
+end
+
 @testset "ClassMethods @class macro" begin
     vanilla = VanillaExample.MyClass(10)
     macro_based = MacroExample.MyClass(10)
@@ -70,6 +76,8 @@ end # module MacroExample
     @test macro_based.describe() == "MyClass(10)"
 
     @test fieldnames(VanillaExample.MyClass) == fieldnames(MacroExample.MyClass)
+    @test repr(vanilla) == "Main.VanillaExample.MyClass(10)"
+    @test repr(macro_based) == "Main.MacroExample.MyClass(10)"
 
     @test vanilla.set_value!(20) === vanilla
     @test macro_based.set_value!(20) === macro_based
