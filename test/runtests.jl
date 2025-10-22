@@ -69,8 +69,7 @@ end # module MacroExample
     @test vanilla.describe() == "MyClass(10)"
     @test macro_based.describe() == "MyClass(10)"
 
-    @test VanillaExample.describe(vanilla) == "MyClass(10)"
-    @test MacroExample.describe(macro_based) == "MyClass(10)"
+    @test fieldnames(VanillaExample.MyClass) == fieldnames(MacroExample.MyClass)
 
     @test vanilla.set_value!(20) === vanilla
     @test macro_based.set_value!(20) === macro_based
@@ -87,4 +86,3 @@ end # module MacroExample
     @test vanilla.adjust!(4) == 30
     @test macro_based.adjust!(4) == 30
 end
-

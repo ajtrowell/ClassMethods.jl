@@ -2,3 +2,9 @@ name = "ClassMethods"
 uuid = "caa289c9-0d94-4b40-94da-d515277500b5"
 authors = ["Ashley Trowell <ashley.trowell@matrixresearch.com>"]
 version = "0.1.0"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

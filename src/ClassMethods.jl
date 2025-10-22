@@ -22,7 +22,7 @@ function _extract_field(stmt)
         name = stmt
         signature = stmt
         return FieldSpec(name, signature, stmt)
-    elseif stmt isa Expr && stmt.head == :typed
+    elseif stmt isa Expr && stmt.head == :(::)
         name = stmt.args[1]
         signature = Expr(:(::), name, stmt.args[2])
         return FieldSpec(name, signature, stmt)
@@ -34,7 +34,12 @@ end
 function _method_match_from_call(call_expr, struct_name::Symbol)
     call_expr isa Expr && call_expr.head == :call || return nothing
     length(call_expr.args) >= 2 || return nothing
-    first_arg = call_expr.args[2]
+    arg_index = 2
+    if call_expr.args[arg_index] isa Expr && call_expr.args[arg_index].head == :parameters
+        arg_index += 1
+        arg_index <= length(call_expr.args) || return nothing
+    end
+    first_arg = call_expr.args[arg_index]
     first_arg isa Expr && first_arg.head == :(::) || return nothing
     first_arg_type = first_arg.args[2]
     first_arg_type == struct_name || return nothing
@@ -69,14 +74,15 @@ function _maybe_method(stmt, struct_name::Symbol)
 end
 
 function _make_const_field_expr(method_name::Symbol)
-    inner = Expr(:typed, method_name, :Function)
+    inner = Expr(:(::), method_name, :Function)
     return Expr(:const, inner)
 end
 
 function _make_method_closure_expr(method_name::Symbol)
-    args_tuple = Expr(:tuple, Expr(:..., :args), Expr(:parameters, Expr(:..., :kwargs)))
-    call_expr = Expr(:call, method_name, :obj, Expr(:..., :args), Expr(:parameters, Expr(:..., :kwargs)))
-    return Expr(:->, args_tuple, call_expr)
+    kw_tuple = Expr(:parameters, Expr(:..., :kwargs))
+    arg_tuple = Expr(:tuple, kw_tuple, Expr(:..., :args))
+    call_expr = Expr(:call, method_name, kw_tuple, :obj, Expr(:..., :args))
+    return Expr(:->, arg_tuple, call_expr)
 end
 
 function _build_constructor(struct_name::Symbol, field_specs::Vector{FieldSpec}, methods::Vector{MethodSpec})
@@ -114,7 +120,8 @@ macro class(ex)
             continue
         end
 
-        if fieldspec = _extract_field(stmt)
+        fieldspec = _extract_field(stmt)
+        if fieldspec !== nothing
             append!(field_stmts, pending_lines)
             empty!(pending_lines)
             push!(field_stmts, stmt)
@@ -122,7 +129,8 @@ macro class(ex)
             continue
         end
 
-        if methodspec = _maybe_method(stmt, struct_name)
+        methodspec = _maybe_method(stmt, struct_name)
+        if methodspec !== nothing
             append!(method_stmts, pending_lines)
             empty!(pending_lines)
             push!(method_stmts, methodspec.expr)
