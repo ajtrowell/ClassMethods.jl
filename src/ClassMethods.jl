@@ -11,6 +11,8 @@ struct FieldSpec
     name::Symbol
     signature_arg::Any
     expr::Any
+    has_default::Bool
+    default_expr::Any
 end
 
 function _is_line(node)
@@ -18,17 +20,29 @@ function _is_line(node)
 end
 
 function _extract_field(stmt)
-    if stmt isa Symbol
-        name = stmt
-        signature = stmt
-        return FieldSpec(name, signature, stmt)
-    elseif stmt isa Expr && stmt.head == :(::)
-        name = stmt.args[1]
-        signature = Expr(:(::), name, stmt.args[2])
-        return FieldSpec(name, signature, stmt)
+    has_default = false
+    default_expr = nothing
+    field_expr = stmt
+
+    if stmt isa Expr && stmt.head == :(=)
+        field_expr = stmt.args[1]
+        default_expr = stmt.args[2]
+        has_default = true
+    end
+
+    if field_expr isa Symbol
+        name = field_expr
+        signature = field_expr
+        clean_expr = field_expr
+    elseif field_expr isa Expr && field_expr.head == :(::)
+        name = field_expr.args[1]
+        signature = Expr(:(::), name, field_expr.args[2])
+        clean_expr = field_expr
     else
         return nothing
     end
+
+    return FieldSpec(name, signature, clean_expr, has_default, default_expr)
 end
 
 function _method_match_from_call(call_expr, struct_name::Symbol)
@@ -85,10 +99,8 @@ function _make_method_closure_expr(method_name::Symbol)
     return Expr(:->, arg_tuple, call_expr)
 end
 
-function _build_constructor(struct_name::Symbol, field_specs::Vector{FieldSpec}, methods::Vector{MethodSpec})
+function _build_constructors(struct_name::Symbol, field_specs::Vector{FieldSpec}, methods::Vector{MethodSpec})
     signature_args = [spec.signature_arg for spec in field_specs]
-    constructor_signature = Expr(:call, struct_name, signature_args...)
-
     field_names = [spec.name for spec in field_specs]
     closures = [_make_method_closure_expr(method.name) for method in methods]
     new_args = vcat(field_names, closures)
@@ -96,7 +108,21 @@ function _build_constructor(struct_name::Symbol, field_specs::Vector{FieldSpec},
     assign_expr = Expr(:(=), :obj, Expr(:call, :new, new_args...))
     return_expr = :(return obj)
     body = Expr(:block, assign_expr, return_expr)
-    return Expr(:function, constructor_signature, body)
+
+    positional_signature = Expr(:call, struct_name, signature_args...)
+    positional_constructor = Expr(:function, positional_signature, body)
+
+    kw_params = Any[]
+    for spec in field_specs
+        param_expr = spec.signature_arg
+        param_expr = spec.has_default ? Expr(:kw, param_expr, spec.default_expr) : param_expr
+        push!(kw_params, param_expr)
+    end
+
+    kw_signature = Expr(:call, struct_name, Expr(:parameters, kw_params...))
+    kw_constructor = Expr(:function, kw_signature, body)
+
+    return Any[positional_constructor, kw_constructor]
 end
 
 function _build_show_definition(struct_name::Symbol, field_specs::Vector{FieldSpec})
@@ -149,7 +175,7 @@ macro class(ex)
         if fieldspec !== nothing
             append!(field_stmts, pending_lines)
             empty!(pending_lines)
-            push!(field_stmts, stmt)
+            push!(field_stmts, fieldspec.expr)
             push!(fields, fieldspec)
             continue
         end
@@ -183,14 +209,14 @@ macro class(ex)
     end
 
     const_fields = [_make_const_field_expr(name) for name in method_names]
-    constructor_expr = _build_constructor(struct_name, fields, method_specs)
+    constructor_exprs = _build_constructors(struct_name, fields, method_specs)
 
     new_body_items = Any[]
     append!(new_body_items, field_stmts)
     append!(new_body_items, const_fields)
     append!(new_body_items, method_stmts)
     append!(new_body_items, other_stmts)
-    push!(new_body_items, constructor_expr)
+    append!(new_body_items, constructor_exprs)
 
     new_body = Expr(:block, new_body_items...)
     new_struct = Expr(:struct, is_mutable, struct_name, new_body)

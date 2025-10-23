@@ -59,6 +59,16 @@ end
 
 end # module MacroExample
 
+module DefaultMacroExample
+using ClassMethods: @class
+
+@class struct DefaultClass
+    x::Int = 41
+    y::String = "hello"
+end
+
+end # module DefaultMacroExample
+
 function Base.show(io::IO, obj::VanillaExample.MyClass)
     print(io, "$(typeof(obj))(")
     print(io, obj.value)
@@ -93,4 +103,17 @@ end
 
     @test vanilla.adjust!(4) == 30
     @test macro_based.adjust!(4) == 30
+
+    macro_keyword = MacroExample.MyClass(value = 99)
+    @test macro_keyword.value == 99
+
+    defaulted = DefaultMacroExample.DefaultClass()
+    @test defaulted.x == 41
+    @test defaulted.y == "hello"
+
+    partial_override = DefaultMacroExample.DefaultClass(x = 10)
+    @test partial_override.x == 10
+    @test partial_override.y == "hello"
+
+    @test DefaultMacroExample.DefaultClass(5, "world").x == 5
 end
