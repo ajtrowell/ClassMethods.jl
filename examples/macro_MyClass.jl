@@ -1,7 +1,7 @@
 module MyModule
-  using StructMethods: @class
+  using StructMethods: @structmethods
 
-  @class mutable struct MyClass
+  @structmethods mutable struct MyClass
     value::Int
 
     function describe(self::MyClass)

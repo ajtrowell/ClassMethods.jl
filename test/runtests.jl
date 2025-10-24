@@ -37,9 +37,9 @@ end
 end # module VanillaExample
 
 module MacroExample
-using StructMethods: @class
+using StructMethods: @structmethods
 
-@class mutable struct MyClass
+@structmethods mutable struct MyClass
     value::Int
 
     function describe(self::MyClass)
@@ -60,9 +60,9 @@ end
 end # module MacroExample
 
 module DefaultMacroExample
-using StructMethods: @class
+using StructMethods: @structmethods
 
-@class struct DefaultClass
+@structmethods struct DefaultClass
     x::Int = 41
     y::String = "hello"
 end
@@ -75,7 +75,7 @@ function Base.show(io::IO, obj::VanillaExample.MyClass)
     print(io, ")")
 end
 
-@testset "StructMethods @class macro" begin
+@testset "StructMethods @structmethods macro" begin
     vanilla = VanillaExample.MyClass(10)
     macro_based = MacroExample.MyClass(10)
 

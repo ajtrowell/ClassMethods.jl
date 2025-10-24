@@ -8,7 +8,7 @@ https://www.functionalnoise.com/pages/2023-01-31-julia-class/
 ```julia
 using StructMethods
 
-@class mutable struct MyClass
+@structmethods mutable struct MyClass
     value::Int
 
     function describe(self::MyClass)
@@ -32,7 +32,7 @@ It also injects an optional `Base.show(io, obj::MyClass)` overload that prints t
 
 ## Constructors
 
-`@class` owns the canonical inner constructor so that it can wire up the method fields consistently. User-written inner constructors are therefore rejected. If you need alternative construction paths, define **outer constructors** that forward into the generated one:
+`@structmethods` owns the canonical inner constructor so that it can wire up the method fields consistently. User-written inner constructors are therefore rejected. If you need alternative construction paths, define **outer constructors** that forward into the generated one:
 
 ```julia
 MyClass(str::AbstractString) = MyClass(parse(Int, str))
@@ -53,5 +53,4 @@ Outer constructors can perform arbitrary validation, parameter juggling, or conv
 - Additional metaprogramming inside the struct body (e.g. other macros that generate method definitions) may need manual adaptation.
 
 See `examples/macro_MyClass.jl` for a runnable REPL demo and `examples/vanilla_MyClass.jl` for the equivalent hand-written version the macro emulates.
-
 
