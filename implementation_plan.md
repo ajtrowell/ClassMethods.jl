@@ -1,6 +1,6 @@
 Implementation Plan
 -------------------
-- Replace the placeholder contents of `src/ClassMethods.jl` with the `@class` macro machinery, including helper functions to parse the struct body, collect field declarations, and detect method blocks whose first argument is annotated as the enclosing struct type.
+- Replace the placeholder contents of `src/StructMethods.jl` with the `@class` macro machinery, including helper functions to parse the struct body, collect field declarations, and detect method blocks whose first argument is annotated as the enclosing struct type.
 - Support both long-form `function f(self::ThisType, ...) ... end` definitions and short-form assignments `f(self::ThisType, ...) = ...` inside the struct block by normalizing them into a common representation.
 - For each detected method, emit a `const` function-typed field in the struct definition and extend the method definition so it remains available outside the struct body.
 - Synthesize an inner constructor that instantiates the struct, then assigns each method field a closure wrapping the corresponding function, e.g. `(args...; kwargs...) -> method(obj, args...; kwargs...)`.
@@ -15,4 +15,3 @@ Limitations
 Open Questions
 --------------
 - None at this time.
-

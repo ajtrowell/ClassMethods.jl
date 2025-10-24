@@ -1,5 +1,5 @@
 module MyModule
-  using ClassMethods: @class
+  using StructMethods: @class
 
   @class mutable struct MyClass
     value::Int

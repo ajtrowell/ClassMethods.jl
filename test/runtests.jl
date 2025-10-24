@@ -1,5 +1,5 @@
 using Test
-using ClassMethods
+using StructMethods
 
 module VanillaExample
 
@@ -37,7 +37,7 @@ end
 end # module VanillaExample
 
 module MacroExample
-using ClassMethods: @class
+using StructMethods: @class
 
 @class mutable struct MyClass
     value::Int
@@ -60,7 +60,7 @@ end
 end # module MacroExample
 
 module DefaultMacroExample
-using ClassMethods: @class
+using StructMethods: @class
 
 @class struct DefaultClass
     x::Int = 41
@@ -75,7 +75,7 @@ function Base.show(io::IO, obj::VanillaExample.MyClass)
     print(io, ")")
 end
 
-@testset "ClassMethods @class macro" begin
+@testset "StructMethods @class macro" begin
     vanilla = VanillaExample.MyClass(10)
     macro_based = MacroExample.MyClass(10)
 

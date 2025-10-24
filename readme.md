@@ -1,4 +1,4 @@
-# ClassMethods.jl
+# StructMethods.jl
 
 Inspired by experiments from  
 https://www.functionalnoise.com/pages/2023-01-31-julia-class/
@@ -6,7 +6,7 @@ https://www.functionalnoise.com/pages/2023-01-31-julia-class/
 ## Usage
 
 ```julia
-using ClassMethods
+using StructMethods
 
 @class mutable struct MyClass
     value::Int
@@ -53,6 +53,5 @@ Outer constructors can perform arbitrary validation, parameter juggling, or conv
 - Additional metaprogramming inside the struct body (e.g. other macros that generate method definitions) may need manual adaptation.
 
 See `examples/macro_MyClass.jl` for a runnable REPL demo and `examples/vanilla_MyClass.jl` for the equivalent hand-written version the macro emulates.
-
 
 

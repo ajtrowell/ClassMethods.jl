@@ -1,4 +1,4 @@
-module ClassMethods
+module StructMethods
 
 export @class
 
@@ -227,4 +227,4 @@ macro class(ex)
     return esc(result_block)
 end
 
-end # module ClassMethods
+end # module StructMethods
