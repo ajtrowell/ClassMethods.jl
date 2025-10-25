@@ -2,6 +2,7 @@
 struct MethodSpec
     name::Symbol
     expr::Any
+    doc_exprs::Vector{Any}
 end
 
 struct FieldSpec
@@ -14,6 +15,17 @@ end
 
 function _is_line(node)
     return node isa LineNumberNode
+end
+
+function _is_docstring(node)
+    if node isa String
+        return true
+    elseif node isa Expr
+        return node.head === :string || node.head === :call ||
+            (node.head === :macrocall && node.args[1] === Symbol("@doc_str"))
+    else
+        return false
+    end
 end
 
 function _extract_field(stmt)
@@ -69,7 +81,7 @@ function _maybe_method(stmt, struct_name::Symbol)
         if method_name === nothing
             return nothing
         end
-        return MethodSpec(method_name, stmt)
+        return MethodSpec(method_name, stmt, Any[])
     elseif stmt isa Expr && stmt.head == :(=)
         lhs = stmt.args[1]
         lhs isa Expr && lhs.head == :call || return nothing
@@ -78,7 +90,7 @@ function _maybe_method(stmt, struct_name::Symbol)
         if method_name === nothing
             return nothing
         end
-        return MethodSpec(method_name, stmt)
+        return MethodSpec(method_name, stmt, Any[])
     else
         return nothing
     end
@@ -161,6 +173,7 @@ macro structmethods(ex)
     method_stmts = Any[]
     other_stmts = Any[]
     pending_lines = Any[]
+    pending_docs = Any[]
 
     for stmt in body_expr.args
         if _is_line(stmt)
@@ -168,10 +181,19 @@ macro structmethods(ex)
             continue
         end
 
+        if _is_docstring(stmt)
+            append!(pending_docs, pending_lines)
+            empty!(pending_lines)
+            push!(pending_docs, stmt)
+            continue
+        end
+
         fieldspec = _extract_field(stmt)
         if fieldspec !== nothing
             append!(field_stmts, pending_lines)
+            append!(field_stmts, pending_docs)
             empty!(pending_lines)
+            empty!(pending_docs)
             push!(field_stmts, fieldspec.expr)
             push!(fields, fieldspec)
             continue
@@ -179,20 +201,28 @@ macro structmethods(ex)
 
         methodspec = _maybe_method(stmt, struct_name)
         if methodspec !== nothing
+            doc_entries = [node for node in pending_docs if !(node isa LineNumberNode)]
             append!(method_stmts, pending_lines)
+            append!(method_stmts, pending_docs)
             empty!(pending_lines)
+            empty!(pending_docs)
             push!(method_stmts, methodspec.expr)
-            push!(method_specs, methodspec)
+            push!(method_specs, MethodSpec(methodspec.name, methodspec.expr, doc_entries))
             continue
         end
 
         append!(other_stmts, pending_lines)
+        append!(other_stmts, pending_docs)
         empty!(pending_lines)
+        empty!(pending_docs)
         push!(other_stmts, stmt)
     end
 
     if !isempty(pending_lines)
         append!(other_stmts, pending_lines)
+    end
+    if !isempty(pending_docs)
+        append!(other_stmts, pending_docs)
     end
 
     isempty(fields) && error("@structmethods requires at least one non-method field")
@@ -217,9 +247,25 @@ macro structmethods(ex)
 
     new_body = Expr(:block, new_body_items...)
     new_struct = Expr(:struct, is_mutable, struct_name, new_body)
+    doc_macro = Expr(:., :Base, QuoteNode(Symbol("@__doc__")))
+    doc_struct = Expr(:macrocall, doc_macro, LineNumberNode(0, Symbol("structmethods")), new_struct)
 
     show_doc_expr = _build_show_definition(struct_name, fields)
-    result_block = Expr(:block, new_struct, show_doc_expr)
+
+    method_doc_items = Any[]
+    for method in method_specs
+        isempty(method.doc_exprs) && continue
+        signature = method.expr.args[1]
+        for doc_expr in method.doc_exprs
+            signature_copy = Base.deepcopy(signature)
+            doc_call = Expr(:macrocall, Symbol("@doc"), LineNumberNode(0, Symbol("structmethods")), doc_expr, signature_copy)
+            push!(method_doc_items, doc_call)
+        end
+    end
+
+    result_items = Any[doc_struct, show_doc_expr]
+    append!(result_items, method_doc_items)
+    result_block = Expr(:block, result_items...)
 
     return esc(result_block)
 end

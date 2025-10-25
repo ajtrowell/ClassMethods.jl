@@ -1,5 +1,9 @@
 using Test
+include(joinpath(@__DIR__, "..", "docstringextensions_mount", "src", "DocStringExtensions.jl"))
+const DSE = DocStringExtensions
+
 using StructMethods
+using Base.Docs: Binding, meta
 
 module VanillaExample
 
@@ -69,6 +73,28 @@ end
 
 end # module DefaultMacroExample
 
+module DocMacroExample
+using StructMethods: @structmethods
+
+"""Dog struct doc.
+
+$(Main.DSE.FIELDS)
+"""
+@structmethods mutable struct Dog
+    """Dog name doc"""
+    name::String = "Fido"
+
+    """Dog age doc"""
+    age::Int = 0
+
+    """Return the age in dog years."""
+    function dog_years(self::Dog)
+        self.age * 7
+    end
+end
+
+end # module DocMacroExample
+
 function Base.show(io::IO, obj::VanillaExample.MyClass)
     print(io, "$(typeof(obj))(")
     print(io, obj.value)
@@ -116,4 +142,22 @@ end
     @test partial_override.y == "hello"
 
     @test DefaultMacroExample.DefaultClass(5, "world").x == 5
+
+    doc_meta = meta(DocMacroExample)
+    dog_binding = Binding(DocMacroExample, :Dog)
+    @test haskey(doc_meta, dog_binding)
+    dog_doc = first(values(doc_meta[dog_binding].docs))
+    buf = IOBuffer()
+    DSE.format(DSE.FIELDS, buf, dog_doc)
+    fields_output = String(take!(buf))
+    @test occursin("`name`", fields_output)
+    @test occursin("Dog name doc", fields_output)
+    @test occursin("`age`", fields_output)
+    @test occursin("Dog age doc", fields_output)
+
+    dog_years_binding = Binding(DocMacroExample, :dog_years)
+    @test haskey(doc_meta, dog_years_binding)
+    dog_years_doc = first(values(doc_meta[dog_years_binding].docs))
+    method_text = join(String.(dog_years_doc.text))
+    @test occursin("Return the age in dog years", method_text)
 end

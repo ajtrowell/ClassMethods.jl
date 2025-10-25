@@ -3,6 +3,9 @@
 Inspired by experiments from  
 https://www.functionalnoise.com/pages/2023-01-31-julia-class/
 
+Note more thorough OOP implementation here
+https://github.com/Suzhou-Tongyuan/ObjectOriented.jl
+
 ## Usage
 
 ```julia
