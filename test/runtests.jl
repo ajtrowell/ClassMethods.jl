@@ -96,6 +96,23 @@ end
 
 end # module DocMacroExample
 
+module TypedDocMacroExample
+using StructMethods: @structmethods
+
+"""Cat struct doc.
+
+$(Main.DSE.TYPEDFIELDS)
+"""
+@structmethods mutable struct Cat
+  """Cat sound doc"""
+  sound::String = "meow"
+
+  """Docstring for speak::Function"""
+  speak(self::Cat) = self.sound
+end
+
+end # module TypedDocMacroExample
+
 function Base.show(io::IO, obj::VanillaExample.MyClass)
   print(io, "$(typeof(obj))(")
   print(io, obj.value)
@@ -161,4 +178,26 @@ end
   dog_years_doc = first(values(doc_meta[dog_years_binding].docs))
   method_text = join(String.(dog_years_doc.text))
   @test occursin("Return the age in dog years", method_text)
+
+  typed_meta = meta(TypedDocMacroExample)
+  cat_binding = Binding(TypedDocMacroExample, :Cat)
+  @test haskey(typed_meta, cat_binding)
+  cat_doc = first(values(typed_meta[cat_binding].docs))
+  cat_fields = cat_doc.data[:fields]
+  @test cat_fields[:sound] == "Cat sound doc"
+  @test cat_fields[:speak] == "Docstring for speak::Function"
+
+  typed_buf = IOBuffer()
+  DSE.format(DSE.TYPEDFIELDS, typed_buf, cat_doc)
+  typed_output = String(take!(typed_buf))
+  @test occursin("`sound::String`", typed_output)
+  @test occursin("Cat sound doc", typed_output)
+  @test occursin("`speak::Function`", typed_output)
+  @test occursin("Docstring for speak::Function", typed_output)
+
+  speak_binding = Binding(TypedDocMacroExample, :speak)
+  @test haskey(typed_meta, speak_binding)
+  speak_doc = first(values(typed_meta[speak_binding].docs))
+  speak_text = join(String.(speak_doc.text))
+  @test occursin("Docstring for speak::Function", speak_text)
 end
