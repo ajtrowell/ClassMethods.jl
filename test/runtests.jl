@@ -1,4 +1,5 @@
 using Test
+using DocStringExtensions
 #include(joinpath(@__DIR__, "..", "docstringextensions_mount", "src", "DocStringExtensions.jl"))
 const DSE = DocStringExtensions
 
