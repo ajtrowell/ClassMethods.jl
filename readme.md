@@ -28,10 +28,34 @@ end
 The macro rewrites the struct so that every method whose first argument is typed as the enclosing struct:
 
 - remains available as a regular method (e.g. `MyClass.describe`),
-- gets a matching `const` function field stored on each instance,
+- is exposed as a function field on each instance (the generated `setproperty!` prevents reassignment so it behaves like `const`),
 - is wrapped by an inner constructor-generated closure so the instance can call `obj.describe(...)`.
 
 It also injects an optional `Base.show(io, obj::MyClass)` overload that prints the data fields while avoiding recursion; delete that method if you prefer the default `show`.
+
+## Supported definitions
+
+- Method blocks:
+
+  ```julia
+  function adjust!(self::MyClass, delta::Int; scale::Int = 1) ...
+  ```
+
+- Single-expression methods:
+
+  ```julia
+  describe(self::MyClass) = "MyClass($(self.value))"
+  ```
+
+- Closure syntax via field assignment (handy for short methods):
+
+  ```julia
+  reset! = (self::MyClass, value::Int) -> (self.value = value; self)
+  ```
+
+Every form above can carry inline docstrings, and those docstrings flow through `DocStringExtensions.FIELDS` and `DocStringExtensions.TYPEDFIELDS`.
+
+`@structmethods` also respects default values introduced with `Base.@kwdef`, so keyword construction works naturally.
 
 ## Constructors
 
@@ -48,6 +72,7 @@ end
 ```
 
 Outer constructors can perform arbitrary validation, parameter juggling, or conversion before returning the instance created by the macro’s inner constructor.
+Attempting to reassign a generated method field raises the same `setfield!: const field … cannot be changed` error you would get from a hand-written `const` slot.
 
 ## Limitations
 
@@ -57,10 +82,106 @@ Outer constructors can perform arbitrary validation, parameter juggling, or conv
 
 See `examples/macro_MyClass.jl` for a runnable REPL demo and `examples/vanilla_MyClass.jl` for the equivalent hand-written version the macro emulates.
 
+## Docstrings and examples
+
+The macro preserves struct field docstrings and captures method docstrings on the generated fields, so abbreviations like `$(FIELDS)` and `$(TYPEDFIELDS)` show both fields and method names.
+
+Below is a minimal “Dog” implementation spelled out manually and then using `@structmethods`.
+
+```julia
+using DocStringExtensions: TYPEDFIELDS
+
+"""
+    Dog
+
+Fully expanded version without macros.
+
+$(TYPEDFIELDS)
+"""
+mutable struct Dog
+    """Dog name doc"""
+    name::String
+    """Dog age doc"""
+    age::Int
+    """Return the age in dog years."""
+    dog_years::Function
+    describe::Function
+
+    function Dog(name::String, age::Int)
+        obj = new(
+            name,
+            age,
+            (args...; kwargs...) -> dog_years(obj, args...; kwargs...),
+            (args...; kwargs...) -> describe(obj, args...; kwargs...),
+        )
+        return obj
+    end
+
+    function Dog(; name::String = "Fido", age::Int = 0)
+        obj = new(
+            name,
+            age,
+            (args...; kwargs...) -> dog_years(obj, args...; kwargs...),
+            (args...; kwargs...) -> describe(obj, args...; kwargs...),
+        )
+        return obj
+    end
+end
+
+function Base.setproperty!(dog::Dog, name::Symbol, value)
+    if name === :dog_years || name === :describe
+        error("setfield!: const field .$name of type Dog cannot be changed")
+    end
+    return Base.setfield!(dog, name, value)
+end
+
+"""
+Return the age in dog years.
+"""
+function dog_years(self::Dog)
+    self.age * 7
+end
+
+describe(self::Dog) = "Dog($(self.name), $(self.age))"
+
+function Base.show(io::IO, dog::Dog)
+    print(io, "Dog($(repr(dog.name)), $(dog.age))")
+end
+```
+
+The macro version produces equivalent behaviour (including the `setproperty!` guard) without the boilerplate:
+
+```julia
+using StructMethods
+using DocStringExtensions: TYPEDFIELDS
+
+"""
+    Dog
+
+Example using @structmethods.
+
+$(TYPEDFIELDS)
+"""
+@structmethods mutable struct Dog
+    """Dog name doc"""
+    name::String = "Fido"
+
+    """Dog age doc"""
+    age::Int = 0
+
+    """Return the age in dog years."""
+    function dog_years(self::Dog)
+        self.age * 7
+    end
+
+    describe(self::Dog) = "Dog($(self.name), $(self.age))"
+end
+```
+
+Both versions expose docstrings through `DocStringExtensions` and offer the same keyword constructor defaults; the macro form additionally rejects reassignment such as `dog.describe = identity`.
+
 ## Agent support
 Using with
 https://github.com/ajtrowell/shared_julia_depot
 julia sandboxing.
-
-
 

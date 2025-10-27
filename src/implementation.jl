@@ -184,6 +184,36 @@ function _make_method_closure_expr(method_name::Symbol)
     return Expr(:->, arg_tuple, call_expr)
 end
 
+function _build_setproperty_override(struct_name::Symbol, method_names::Vector{Symbol})
+    isempty(method_names) && return nothing
+
+    obj_arg = Expr(:(::), :obj, struct_name)
+    name_arg = Expr(:(::), :name, :Symbol)
+    value_sym = :value
+
+    guard_expr = nothing
+    for method_name in method_names
+        eq_expr = Expr(:call, :(===), :name, QuoteNode(method_name))
+        guard_expr = guard_expr === nothing ? eq_expr : Expr(:||, guard_expr, eq_expr)
+    end
+
+    guard_expr === nothing && return nothing
+
+    struct_name_str = string(struct_name)
+    error_msg = Expr(:call, :string,
+        "setfield!: const field .",
+        :name,
+        " of type ",
+        struct_name_str,
+        " cannot be changed",
+    )
+    error_call = Expr(:call, :error, error_msg)
+    setfield_call = Expr(:call, :(Base.setfield!), :obj, :name, value_sym)
+    body = Expr(:block, Expr(:if, guard_expr, error_call), setfield_call)
+    fn_head = Expr(:call, :(Base.setproperty!), obj_arg, name_arg, value_sym)
+    return Expr(:function, fn_head, body)
+end
+
 function _build_constructors(struct_name::Symbol, field_specs::Vector{FieldSpec}, methods::Vector{MethodSpec})
     signature_args = [spec.signature_arg for spec in field_specs]
     field_names = [spec.name for spec in field_specs]
@@ -340,7 +370,12 @@ macro structmethods(ex)
         end
     end
 
+    setproperty_expr = _build_setproperty_override(struct_name, method_names)
+
     result_items = Any[doc_struct, show_doc_expr]
+    if setproperty_expr !== nothing
+        push!(result_items, setproperty_expr)
+    end
     append!(result_items, method_doc_items)
     result_block = Expr(:block, result_items...)
 
