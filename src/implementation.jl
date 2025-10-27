@@ -96,9 +96,13 @@ function _maybe_method(stmt, struct_name::Symbol)
     end
 end
 
-function _make_const_field_expr(method_name::Symbol)
-    inner = Expr(:(::), method_name, :Function)
-    return Expr(:const, inner)
+function _make_method_field_entries(method::MethodSpec)
+    entries = Any[]
+    for doc in method.doc_exprs
+        push!(entries, Base.deepcopy(doc))
+    end
+    push!(entries, Expr(:(::), method.name, :Function))
+    return entries
 end
 
 function _make_method_closure_expr(method_name::Symbol)
@@ -228,14 +232,15 @@ macro structmethods(ex)
     isempty(fields) && error("@structmethods requires at least one non-method field")
 
     method_names = Symbol[]
+    const_fields = Any[]
     for method in method_specs
         if method.name in method_names
             error("Duplicate method definition for $(method.name)")
         end
         push!(method_names, method.name)
+        append!(const_fields, _make_method_field_entries(method))
     end
 
-    const_fields = [_make_const_field_expr(name) for name in method_names]
     constructor_exprs = _build_constructors(struct_name, fields, method_specs)
 
     new_body_items = Any[]

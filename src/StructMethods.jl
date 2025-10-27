@@ -1,5 +1,5 @@
 module StructMethods
-
+using DocStringExtensions
 export @structmethods
 
 include("implementation.jl")

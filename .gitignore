@@ -1,2 +1,3 @@
 .julia/
 .juliaup/
+Manifest.toml
