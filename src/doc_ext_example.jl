@@ -1,3 +1,4 @@
+using Base: @kwdef
 using DocStringExtensions: TYPEDFIELDS
 
 export Horse
@@ -9,9 +10,9 @@ Small example demonstrating `DocStringExtensions.TYPEDFIELDS` for field docs.
 
 $(TYPEDFIELDS)
 """
-struct Horse
+@kwdef struct Horse
   "Stable name for the horse."
-  name::String
+  name::String = "Unnamed"
   "Age of the horse in years."
-  age::Int
+  age::Int = 0
 end

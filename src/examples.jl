@@ -3,21 +3,27 @@ using DocStringExtensions
 
 export Dog, Cat, run_example
 
-"Doc Added to Dog"
+"""
+Doc Added to Dog with fields
+$(TYPEDFIELDS)
+"""
 @structmethods mutable struct Dog
+  "Name of the Dog"
   name = "name"
+  "Age of the dog, in solar years."
   age = 0
+  "Docstring for get_dog_years::Function"
   get_dog_years(self::Dog) = self.age * 7
 end
 
 
-"Cat docs"
+"Cat docs $(TYPEDFIELDS)"
 @kwdef mutable struct Cat
   "name doc"
   name = "name"
   age = 0
   lives = 9
-  remove_life(self::Cat) = self-=1
+  remove_life(self::Cat) = self -= 1
 end
 
 
