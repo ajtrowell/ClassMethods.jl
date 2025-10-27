@@ -28,7 +28,7 @@ function _is_docstring(node)
     end
 end
 
-function _extract_field(stmt)
+function _extract_field(stmt, struct_name::Symbol)
     has_default = false
     default_expr = nothing
     field_expr = stmt
@@ -51,6 +51,13 @@ function _extract_field(stmt)
         return nothing
     end
 
+    if has_default && default_expr isa Expr && default_expr.head == :-> && name isa Symbol
+        call_expr = _call_expr_from_arrow(name, default_expr.args[1])
+        if call_expr !== nothing && _method_match_from_call(call_expr, struct_name) !== nothing
+            return nothing
+        end
+    end
+
     return FieldSpec(name, signature, clean_expr, has_default, default_expr)
 end
 
@@ -71,6 +78,54 @@ function _method_match_from_call(call_expr, struct_name::Symbol)
     return method_name
 end
 
+function _call_expr_from_arrow(method_name::Symbol, arg_expr)
+    parts = if arg_expr isa Expr && arg_expr.head == :tuple
+        arg_expr.args
+    elseif arg_expr isa Expr && arg_expr.head == :block
+        arg_expr.args
+    else
+        return nothing
+    end
+
+    call_args = Any[method_name]
+    positional_args = Any[]
+    kw_entries = Any[]
+    params_expr = nothing
+
+    for part in parts
+        if part isa LineNumberNode
+            continue
+        elseif part isa Expr && part.head == :parameters
+            params_expr === nothing || return nothing
+            params_expr = Base.deepcopy(part)
+        elseif part isa Expr && part.head == :(=)
+            kw = Expr(:kw, part.args[1], Base.deepcopy(part.args[2]))
+            push!(kw_entries, kw)
+        else
+            push!(positional_args, Base.deepcopy(part))
+        end
+    end
+
+    if !isempty(kw_entries)
+        if params_expr === nothing
+            params_expr = Expr(:parameters, kw_entries...)
+        else
+            append!(params_expr.args, kw_entries)
+        end
+    end
+
+    if params_expr !== nothing
+        push!(call_args, params_expr)
+    end
+
+    append!(call_args, positional_args)
+
+    if length(call_args) == 1
+        return nothing
+    end
+    return Expr(:call, call_args...)
+end
+
 function _maybe_method(stmt, struct_name::Symbol)
     if stmt isa Expr && stmt.head == :function
         signature = stmt.args[1]
@@ -84,13 +139,30 @@ function _maybe_method(stmt, struct_name::Symbol)
         return MethodSpec(method_name, stmt, Any[])
     elseif stmt isa Expr && stmt.head == :(=)
         lhs = stmt.args[1]
-        lhs isa Expr && lhs.head == :call || return nothing
-        lhs.args[1] == struct_name && error("`@structmethods` does not support manually defined inner constructors; remove the constructor or define it outside the struct.")
-        method_name = _method_match_from_call(lhs, struct_name)
-        if method_name === nothing
+        rhs = stmt.args[2]
+        if lhs isa Expr && lhs.head == :call
+            lhs.args[1] == struct_name && error("`@structmethods` does not support manually defined inner constructors; remove the constructor or define it outside the struct.")
+            method_name = _method_match_from_call(lhs, struct_name)
+            if method_name === nothing
+                return nothing
+            end
+            return MethodSpec(method_name, stmt, Any[])
+        elseif lhs isa Symbol && rhs isa Expr && rhs.head == :-> 
+            lhs == struct_name && error("`@structmethods` does not support manually defined inner constructors; remove the constructor or define it outside the struct.")
+            call_expr = _call_expr_from_arrow(lhs, rhs.args[1])
+            if call_expr === nothing
+                return nothing
+            end
+            method_name = _method_match_from_call(call_expr, struct_name)
+            if method_name === nothing
+                return nothing
+            end
+            body_expr = Base.deepcopy(rhs.args[2])
+            method_expr = Expr(:(=), call_expr, body_expr)
+            return MethodSpec(method_name, method_expr, Any[])
+        else
             return nothing
         end
-        return MethodSpec(method_name, stmt, Any[])
     else
         return nothing
     end
@@ -192,7 +264,7 @@ macro structmethods(ex)
             continue
         end
 
-        fieldspec = _extract_field(stmt)
+        fieldspec = _extract_field(stmt, struct_name)
         if fieldspec !== nothing
             append!(field_stmts, pending_lines)
             append!(field_stmts, pending_docs)

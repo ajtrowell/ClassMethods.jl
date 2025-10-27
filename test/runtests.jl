@@ -113,6 +113,23 @@ end
 
 end # module TypedDocMacroExample
 
+module ClosureMacroExample
+using StructMethods: @structmethods
+
+@structmethods mutable struct Fox
+  name::String
+
+  """Return a howl string with an optional suffix."""
+  howl = (self::Fox; suffix="!") -> self.name * suffix
+
+  reset! = (self::Fox, value::String) -> begin
+    self.name = value
+    return self
+  end
+end
+
+end # module ClosureMacroExample
+
 function Base.show(io::IO, obj::VanillaExample.MyClass)
   print(io, "$(typeof(obj))(")
   print(io, obj.value)
@@ -200,4 +217,17 @@ end
   speak_doc = first(values(typed_meta[speak_binding].docs))
   speak_text = join(String.(speak_doc.text))
   @test occursin("Docstring for speak::Function", speak_text)
+
+  closure_obj = ClosureMacroExample.Fox("red")
+  @test closure_obj.howl() == "red!"
+  @test closure_obj.howl(; suffix="!!") == "red!!"
+  @test closure_obj.reset!("scarlet") === closure_obj
+  @test closure_obj.name == "scarlet"
+
+  closure_meta = meta(ClosureMacroExample)
+  howl_binding = Binding(ClosureMacroExample, :howl)
+  @test haskey(closure_meta, howl_binding)
+  howl_doc = first(values(closure_meta[howl_binding].docs))
+  howl_text = join(String.(howl_doc.text))
+  @test occursin("Return a howl string", howl_text)
 end
