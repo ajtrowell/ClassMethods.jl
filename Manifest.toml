@@ -1,10 +1,16 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.1"
 manifest_format = "2.0"
-project_hash = "ff3807dec3762d748a8c9c2caa2e720d2f514d1c"
+project_hash = "52b45bff4587debdbcf1564fbd238a49e4c4a455"
 
 [[deps.DocStringExtensions]]
 git-tree-sha1 = "7442a5dfe1ebb773c29cc2962a8980f47221d76c"
 uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 version = "0.9.5"
+
+[[deps.StructMethods]]
+deps = ["DocStringExtensions"]
+path = "."
+uuid = "caa289c9-0d94-4b40-94da-d515277500b5"
+version = "0.1.0"

@@ -57,3 +57,10 @@ Outer constructors can perform arbitrary validation, parameter juggling, or conv
 
 See `examples/macro_MyClass.jl` for a runnable REPL demo and `examples/vanilla_MyClass.jl` for the equivalent hand-written version the macro emulates.
 
+## Agent support
+Using with
+https://github.com/ajtrowell/shared_julia_depot
+julia sandboxing.
+
+
+
