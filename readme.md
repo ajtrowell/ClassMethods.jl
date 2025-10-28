@@ -74,6 +74,10 @@ end
 Outer constructors can perform arbitrary validation, parameter juggling, or conversion before returning the instance created by the macro’s inner constructor.
 Attempting to reassign a generated method field raises the same `setfield!: const field … cannot be changed` error you would get from a hand-written `const` slot.
 
+### Field type coercion
+
+Starting with the current release, any field declared with an explicit type annotation (for example `messages::Vector{Int32}`) is coerced inside the generated constructor before `new` is called. This means callers can pass convenient literals such as `[]` or `["1", "2"]` and the macro will apply `convert` to obtain a `Vector{Int32}` (or throw an informative `ArgumentError` if conversion is impossible). The same logic runs for both positional and keyword constructors, so defaults stay ergonomic without sacrificing type safety.
+
 ## Limitations
 
 - Only functions declared inside the struct with a first argument typed exactly as the struct (e.g. `foo(self::MyClass, ...)`) are treated as methods; other definitions remain untouched.
@@ -184,4 +188,3 @@ Both versions expose docstrings through `DocStringExtensions` and offer the same
 Using with
 https://github.com/ajtrowell/shared_julia_depot
 julia sandboxing.
-

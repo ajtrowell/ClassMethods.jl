@@ -13,6 +13,30 @@ struct FieldSpec
     default_expr::Any
 end
 
+function _field_type_error(struct_name::Symbol, field_name::Symbol, expected, value)
+    msg = "Field $(field_name) of $(struct_name) requires a value of type $(expected); got $(typeof(value))."
+    throw(ArgumentError(msg))
+end
+
+function _coerce_field(expected, value, field_name::Symbol, struct_name::Symbol)
+    if value isa expected
+        return value
+    end
+    converted = try
+        convert(expected, value)
+    catch err
+        if err isa MethodError || err isa ArgumentError || err isa TypeError
+            _field_type_error(struct_name, field_name, expected, value)
+        else
+            rethrow()
+        end
+    end
+    if converted isa expected
+        return converted
+    end
+    _field_type_error(struct_name, field_name, expected, value)
+end
+
 function _is_line(node)
     return node isa LineNumberNode
 end
@@ -215,26 +239,55 @@ function _build_setproperty_override(struct_name::Symbol, method_names::Vector{S
 end
 
 function _build_constructors(struct_name::Symbol, field_specs::Vector{FieldSpec}, methods::Vector{MethodSpec})
-    signature_args = [spec.signature_arg for spec in field_specs]
+    signature_args = [spec.name for spec in field_specs]
     field_names = [spec.name for spec in field_specs]
     closures = [_make_method_closure_expr(method.name) for method in methods]
     new_args = vcat(field_names, closures)
 
+    coercion_stmts = Any[]
+    coerce_ref = GlobalRef(@__MODULE__, Symbol("_coerce_field"))
+    for spec in field_specs
+        signature = spec.signature_arg
+        if signature isa Expr && signature.head == :(::)
+            field_type = Base.deepcopy(signature.args[2])
+            field_name = spec.name
+            coerce_call = Expr(
+                :call,
+                coerce_ref,
+                field_type,
+                field_name,
+                QuoteNode(field_name),
+                QuoteNode(struct_name),
+            )
+            push!(coercion_stmts, Expr(:(=), field_name, coerce_call))
+        end
+    end
+
     assign_expr = Expr(:(=), :obj, Expr(:call, :new, new_args...))
     return_expr = :(return obj)
-    body = Expr(:block, assign_expr, return_expr)
+    body_items = Any[]
+    append!(body_items, coercion_stmts)
+    push!(body_items, assign_expr)
+    push!(body_items, return_expr)
+    body = Expr(:block, body_items...)
 
     positional_signature = Expr(:call, struct_name, signature_args...)
     positional_constructor = Expr(:function, positional_signature, body)
 
     kw_params = Any[]
     for spec in field_specs
-        param_expr = spec.signature_arg
-        param_expr = spec.has_default ? Expr(:kw, param_expr, spec.default_expr) : param_expr
-        push!(kw_params, param_expr)
+        if spec.has_default
+            push!(kw_params, Expr(:kw, spec.name, Base.deepcopy(spec.default_expr)))
+        else
+            push!(kw_params, spec.name)
+        end
     end
 
-    kw_signature = Expr(:call, struct_name, Expr(:parameters, kw_params...))
+    kw_signature = if isempty(kw_params)
+        Expr(:call, struct_name, Expr(:parameters))
+    else
+        Expr(:call, struct_name, Expr(:parameters, kw_params...))
+    end
     kw_constructor = Expr(:function, kw_signature, body)
 
     return Any[positional_constructor, kw_constructor]

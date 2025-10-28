@@ -1,6 +1,6 @@
 name = "StructMethods"
 uuid = "caa289c9-0d94-4b40-94da-d515277500b5"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Ashley Trowell <ashley.trowell@matrixresearch.com>"]
 
 [deps]

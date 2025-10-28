@@ -85,6 +85,15 @@ end
 
 end # module DefaultMacroExample
 
+module TypedVectorDefaultExample
+using StructMethods: @structmethods
+
+@structmethods mutable struct Holder
+    values::Vector{Int} = []
+end
+
+end # module TypedVectorDefaultExample
+
 module DocMacroExample
 using StructMethods: @structmethods
 
@@ -215,6 +224,18 @@ end
         positional = DefaultMacroExample.DefaultClass(5, "world")
         @test positional.x == 5
         @test positional.y == "world"
+
+        vector_default = TypedVectorDefaultExample.Holder()
+        @test vector_default.values isa Vector{Int}
+        @test isempty(vector_default.values)
+
+        kw_vector = TypedVectorDefaultExample.Holder(values = Any[1, 2])
+        @test kw_vector.values isa Vector{Int}
+        @test kw_vector.values == [1, 2]
+
+        positional_vector = TypedVectorDefaultExample.Holder(Any[3])
+        @test positional_vector.values isa Vector{Int}
+        @test positional_vector.values == [3]
     end
 
     @testset "Docstrings" begin
